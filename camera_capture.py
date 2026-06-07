@@ -31,9 +31,22 @@ def draw_boxes(frame: np.ndarray, boxes: List[dict]) -> None:
         )
 
 
+def is_gui_available() -> bool:
+    try:
+        cv2.namedWindow("test", cv2.WINDOW_NORMAL)
+        cv2.destroyWindow("test")
+        return True
+    except Exception:
+        return False
+
+
 def main() -> None:
     detector = PestDetector()
     print(f"Loaded detector: {detector.model_name}")
+
+    use_gui = is_gui_available()
+    if not use_gui:
+        print("Warning: OpenCV GUI is unavailable. Running in terminal-only mode.")
 
     cap = cv2.VideoCapture(0)
     if not cap.isOpened():
@@ -43,40 +56,60 @@ def main() -> None:
     last_prediction_time = 0.0
     prediction_interval = 1.5  # seconds
     result = None
+    last_printed = None
 
-    while True:
-        ret, frame = cap.read()
-        if not ret:
-            print("Error: Failed to read camera frame.")
-            break
+    try:
+        while True:
+            ret, frame = cap.read()
+            if not ret:
+                print("Error: Failed to read camera frame.")
+                break
 
-        now = time.time()
-        if now - last_prediction_time >= prediction_interval:
-            image = Image.fromarray(cv2.cvtColor(frame, cv2.COLOR_BGR2RGB))
-            result = detector.predict(image)
-            last_prediction_time = now
+            now = time.time()
+            if now - last_prediction_time >= prediction_interval:
+                image = Image.fromarray(cv2.cvtColor(frame, cv2.COLOR_BGR2RGB))
+                result = detector.predict(image)
+                last_prediction_time = now
 
-        if result is not None:
-            draw_boxes(frame, result.get("boxes", []))
-            label_text = f"{result['pest']} ({result['confidence']:.2f})"
-            cv2.putText(
-                frame,
-                label_text,
-                (10, 30),
-                cv2.FONT_HERSHEY_SIMPLEX,
-                1.0,
-                (255, 255, 255),
-                2,
-                cv2.LINE_AA,
-            )
+            if result is not None:
+                draw_boxes(frame, result.get("boxes", []))
+                label_text = f"{result['pest']} ({result['confidence']:.2f})"
+                cv2.putText(
+                    frame,
+                    label_text,
+                    (10, 30),
+                    cv2.FONT_HERSHEY_SIMPLEX,
+                    1.0,
+                    (255, 255, 255),
+                    2,
+                    cv2.LINE_AA,
+                )
 
-        cv2.imshow("AI Pest Detection Camera", frame)
+                if not use_gui:
+                    output = (
+                        f"[{time.strftime('%Y-%m-%d %H:%M:%S')}] "
+                        f"Detected: {result['pest']} ({result['confidence']:.2f}) | "
+                        f"Boxes: {len(result.get('boxes', []))}"
+                    )
+                    if output != last_printed:
+                        print(output)
+                        for box in result.get('boxes', []):
+                            print(f"  - {box['label']} @ {box['box']} ({box['confidence']:.2f})")
+                        last_printed = output
 
-        if cv2.waitKey(1) & 0xFF == ord("q"):
-            break
-
-    cap.release()
-    cv2.destroyAllWindows()
+            if use_gui:
+                cv2.imshow("AI Pest Detection Camera", frame)
+                if cv2.waitKey(1) & 0xFF == ord("q"):
+                    break
+            else:
+                # In terminal mode, sleep a short time to keep the loop responsive.
+                time.sleep(0.1)
+    except KeyboardInterrupt:
+        print("\nKeyboard interrupt received. Exiting.")
+    finally:
+        cap.release()
+        if use_gui:
+            cv2.destroyAllWindows()
 
 
 if __name__ == "__main__":
