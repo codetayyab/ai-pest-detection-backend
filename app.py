@@ -9,8 +9,12 @@ from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from PIL import Image
 
-# Import our model
-from model import PestDetector
+# Supports both local execution from backend/ and package imports used by Vercel
+# when the repository root is selected as the project root.
+try:
+    from .model import PestDetector
+except ImportError:
+    from model import PestDetector
 
 app = FastAPI(title="AI Pest Detection API", description="FastAPI Backend for Plant Disease & Pest Detection")
 
