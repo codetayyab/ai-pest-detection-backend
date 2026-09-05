@@ -3,7 +3,7 @@ import io
 import json
 import base64
 import datetime
-from typing import List, Optional
+from typing import List
 from fastapi import FastAPI, File, UploadFile, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
@@ -15,10 +15,11 @@ from model import PestDetector
 app = FastAPI(title="AI Pest Detection API", description="FastAPI Backend for Plant Disease & Pest Detection")
 
 # Enable CORS for frontend integration
+cors_origins = [origin.strip() for origin in os.getenv("CORS_ORIGINS", "*").split(",") if origin.strip()]
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"], # Allow all origins for testing/development
-    allow_credentials=True,
+    allow_origins=cors_origins,
+    allow_credentials=False,
     allow_methods=["*"],
     allow_headers=["*"],
 )
@@ -79,6 +80,10 @@ def read_root():
         "model_loaded": detector.model_name,
         "supported_classes": detector.classes
     }
+
+@app.get("/health")
+def health_check():
+    return {"status": "ok", "model": detector.model_name}
 
 @app.post("/predict-image")
 async def predict_image(file: UploadFile = File(...)):
